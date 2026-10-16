@@ -256,7 +256,7 @@ describe("jobs resource", () => {
         id: "job-1",
         name: "train-a1b2",
         status: "running",
-        vm_status: "assigned",
+        vm_status: "provisioned",
         estimated_cost: 1.5,
         actual_cost: 2.5,
         retry_count: 1,
@@ -266,7 +266,7 @@ describe("jobs resource", () => {
       }),
     );
     const job = await client.jobs.get("job-1");
-    expect(job.vmStatus).toBe("assigned");
+    expect(job.vmStatus).toBe("provisioned");
     expect(job.estimatedCost).toBe(1.5);
     expect(job.actualCost).toBe(2.5);
     expect(job.retryCount).toBe(1);

@@ -14,7 +14,11 @@ import {
   rawBoolean,
   rawNumber,
   rawString,
+  rawUnion,
+  type CloudProvider,
   type RawRecord,
+  type TerminalStatus,
+  type VmStatus,
   type WorkloadStatus,
 } from "./shared.js";
 
@@ -33,12 +37,25 @@ export interface VolumeMount {
   prefix?: string;
 }
 
-/** Compute resources; `gpu` is the minimum aggregate GPU VRAM shorthand. */
+/**
+ * Nested GPU request (api spec §3.2 `resources.gpu` long form). Hard
+ * constraints are never silently relaxed: unsatisfiable requests fail at
+ * scheduling with an explicit configuration error.
+ */
+export interface GpuRequest {
+  /** Minimum aggregate GPU VRAM (e.g. `"24Gi"`); required unless `model` is given. */
+  vram?: string;
+  /** Hard constraint on GPU model (e.g. `"A100"`); matched case-insensitively. */
+  model?: string;
+  /** Hard constraint on the minimum number of physical GPUs (requires `model`). */
+  count?: number;
+}
+
+/** Compute resources; `gpu` is the VRAM shorthand or a nested {@link GpuRequest}. */
 export interface JobResources {
   cpu?: number;
   memory?: string;
-  /** VRAM shorthand — `"24Gi"` or `{ vram: "24Gi" }`. */
-  gpu?: string | { vram: string };
+  gpu?: string | GpuRequest;
 }
 
 export interface CreateJobRequest {
@@ -54,17 +71,21 @@ export interface CreateJobRequest {
   volumes?: Record<string, VolumeMount>;
   resources?: JobResources;
   /** Optional provider constraints (e.g. `["aws", "gcp"]`). */
-  cloud?: string[] | string;
-  /** Optional region or macro-region. */
-  region?: string;
+  cloud?: CloudProvider | CloudProvider[];
+  /** Optional specific region(s) or macro-region. */
+  region?: string | string[];
   /** Container retries inside the VM. */
   maxRetries?: number;
   labels?: Record<string, string>;
   tags?: string[];
 }
 
+/** Cronjob job template — a standard job definition without `name` (api spec
+ * §3.3: each trigger spawns `<cronjob-name>-<UTC timestamp>`). */
+export type JobDefinition = Omit<CreateJobRequest, "name" | "namePrefix">;
+
 export interface JobListFilters {
-  status?: string;
+  status?: WorkloadStatus;
   /** Tag filter (single value). */
   tag?: string;
   /** Label filter in the `key:value` form. */
@@ -78,9 +99,9 @@ export interface JobListFilters {
 export interface JobData {
   id: string;
   name: string;
-  status: WorkloadStatus | string;
+  status: WorkloadStatus;
   image?: string;
-  vmStatus?: string;
+  vmStatus?: VmStatus;
   estimatedCost?: number;
   actualCost?: number;
   retryCount?: number;
@@ -104,7 +125,7 @@ export interface WaitUntilCompleteOptions {
   /** Polling interval. Default 10s. */
   pollIntervalMs?: number;
   /** Invoked whenever the reported status changes. */
-  onProgress?: (status: WorkloadStatus | string) => void;
+  onProgress?: (status: WorkloadStatus) => void;
   /** Best-effort `jobs.cancel` when the timeout fires. Default false. */
   cancelOnTimeout?: boolean;
 }
@@ -113,9 +134,9 @@ export function mapJob(raw: RawRecord): JobData {
   return {
     id: rawString(raw, "id") ?? rawString(raw, "job_id") ?? "",
     name: rawString(raw, "name") ?? "",
-    status: typeof raw.status === "string" ? raw.status : "",
+    status: rawUnion<WorkloadStatus>(raw, "status") ?? ("" as WorkloadStatus),
     image: rawString(raw, "image"),
-    vmStatus: rawString(raw, "vm_status"),
+    vmStatus: rawUnion<VmStatus>(raw, "vm_status"),
     estimatedCost: rawNumber(raw, "estimated_cost"),
     actualCost: rawNumber(raw, "actual_cost"),
     retryCount: rawNumber(raw, "retry_count"),
@@ -136,9 +157,9 @@ export function mapJob(raw: RawRecord): JobData {
 export class Job implements JobData {
   readonly id: string;
   readonly name: string;
-  readonly status: WorkloadStatus | string;
+  readonly status: WorkloadStatus;
   readonly image?: string;
-  readonly vmStatus?: string;
+  readonly vmStatus?: VmStatus;
   readonly estimatedCost?: number;
   readonly actualCost?: number;
   readonly retryCount?: number;
@@ -196,7 +217,7 @@ export async function waitUntilComplete(
 ): Promise<Job> {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const deadline = options.timeoutMs !== undefined ? Date.now() + options.timeoutMs : undefined;
-  let lastStatus: string | undefined;
+  let lastStatus: WorkloadStatus | undefined;
 
   for (;;) {
     const job = await client.jobs.get(idOrName);
@@ -205,7 +226,7 @@ export async function waitUntilComplete(
       lastStatus = job.status;
     }
 
-    if (TERMINAL_STATUSES.includes(job.status)) {
+    if (TERMINAL_STATUSES.includes(job.status as TerminalStatus)) {
       if (job.status === "failed") {
         throw new WorkloadFailedError({
           exitCode: job.exitCode,

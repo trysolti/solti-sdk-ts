@@ -9,11 +9,54 @@
  */
 
 import type { SoltiClient } from "../client.js";
-import { rawString, type RawRecord } from "./shared.js";
+import { rawUnion, rawString, type ConnectionType, type RawRecord } from "./shared.js";
 
+/** `type: "aws"` credential fields (cli wire format). */
+export interface AwsCredentials {
+  access_key_id: string;
+  secret_access_key: string;
+  region?: string;
+}
+
+/** `type: "gcp"` credential fields (cli wire format). */
+export interface GcpCredentials {
+  gcp_project_id: string;
+  /** Service-account key JSON (stringified) or omitted for ADC-style creds. */
+  keyfile_json?: string;
+}
+
+/** `type: "azure"` credential fields (cli wire format). */
+export interface AzureCredentials {
+  client_id: string;
+  client_secret: string;
+  subscription_id: string;
+  tenant_id: string;
+}
+
+/** `type: "r2"` (Cloudflare R2) credential fields (cli wire format). */
+export interface R2Credentials {
+  account_id: string;
+  access_key_id: string;
+  secret_access_key: string;
+}
+
+/** `type: "github"` credential fields (cli wire format). */
+export interface GithubCredentials {
+  access_token: string;
+}
+
+/** Provider-specific credentials, flattened into the wire payload (cli convention). */
+export type ConnectionCredentials =
+  | AwsCredentials
+  | GcpCredentials
+  | AzureCredentials
+  | R2Credentials
+  | GithubCredentials;
+
+/** A stored connection (credentials are redacted by the API on read). */
 export interface Connection {
   name: string;
-  type: string;
+  type: ConnectionType;
   createdAt?: string;
   /** Remaining provider-specific fields (credentials are redacted by the API). */
   [key: string]: unknown;
@@ -21,10 +64,9 @@ export interface Connection {
 
 export interface ConnectionCreateRequest {
   name: string;
-  /** e.g. `"aws" | "gcp" | "azure" | "r2" | "github"`. */
-  type: string;
+  type: ConnectionType;
   /** Provider credential fields, flattened into the wire payload (CLI convention). */
-  credentials?: Record<string, unknown>;
+  credentials?: ConnectionCredentials;
   /** Flat credential fields are also accepted directly (CLI convention). */
   [key: string]: unknown;
 }
@@ -34,7 +76,7 @@ function mapConnection(raw: RawRecord): Connection {
   return {
     ...rest,
     name: rawString(raw, "name") ?? "",
-    type: rawString(raw, "type") ?? "",
+    type: rawUnion<ConnectionType>(raw, "type") ?? ("" as ConnectionType),
     createdAt: createdAt as string | undefined,
   };
 }

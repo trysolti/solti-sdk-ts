@@ -5,19 +5,19 @@
  */
 
 import type { SoltiClient } from "../client.js";
-import { rawString, type RawRecord } from "./shared.js";
+import { rawUnion, rawString, type KeyRole, type RawRecord } from "./shared.js";
 
 export interface Key {
   name: string;
-  role?: string;
+  role?: KeyRole;
   createdAt?: string;
   [key: string]: unknown;
 }
 
 export interface CreateKeyRequest {
   name: string;
-  /** Role assigned to the machine user (e.g. `viewer`, `admin`). */
-  role: string;
+  /** Role assigned to the machine user (`admin` | `developer` | `viewer`). */
+  role: KeyRole;
   /** Optional expiry (ISO 8601). */
   expiresAt?: string;
 }
@@ -35,7 +35,7 @@ function mapKey(raw: RawRecord): Key {
   return {
     ...rest,
     name: rawString(raw, "name") ?? "",
-    role: rawString(raw, "role"),
+    role: rawUnion<KeyRole>(raw, "role"),
     createdAt: createdAt as string | undefined,
   };
 }

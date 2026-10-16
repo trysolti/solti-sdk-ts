@@ -27,6 +27,8 @@ export {
 export type {
   VolumeMount,
   JobResources,
+  GpuRequest,
+  JobDefinition,
   CreateJobRequest,
   JobListFilters,
   JobData,
@@ -34,7 +36,16 @@ export type {
 } from "./resources/jobs.js";
 export { Job, JobsResource, DEFAULT_POLL_INTERVAL_MS } from "./resources/jobs.js";
 
-export type { Connection, ConnectionCreateRequest } from "./resources/connections.js";
+export type {
+  Connection,
+  ConnectionCreateRequest,
+  ConnectionCredentials,
+  AwsCredentials,
+  GcpCredentials,
+  AzureCredentials,
+  R2Credentials,
+  GithubCredentials,
+} from "./resources/connections.js";
 export { ConnectionsResource } from "./resources/connections.js";
 
 export type { Cronjob, CreateCronjobRequest, PatchCronjobRequest } from "./resources/cronjobs.js";
@@ -44,4 +55,12 @@ export type { Key, CreateKeyRequest, CreateKeyResponse } from "./resources/keys.
 export { KeysResource } from "./resources/keys.js";
 
 export { TERMINAL_STATUSES } from "./resources/shared.js";
-export type { WorkloadStatus } from "./resources/shared.js";
+export type {
+  WorkloadStatus,
+  TerminalStatus,
+  VmStatus,
+  CloudProvider,
+  ConnectionType,
+  KeyRole,
+  MacroRegion,
+} from "./resources/shared.js";

@@ -7,6 +7,8 @@ orchestrators, without managing infrastructure.
 ## Install
 
 ```bash
+npm i @solti/sdk
+# or
 pnpm add @solti/sdk
 ```
 

@@ -8,7 +8,8 @@
  */
 
 import type { SoltiClient } from "../client.js";
-import { rawBoolean, rawString, type RawRecord } from "./shared.js";
+import { rawBoolean, rawString, rawUnion, type RawRecord } from "./shared.js";
+import type { JobDefinition } from "./jobs.js";
 
 export interface Cronjob {
   id: string;
@@ -17,8 +18,8 @@ export interface Cronjob {
   cronSpec: string;
   isActive: boolean;
   lastTriggeredAt?: string;
-  /** Job template spawned on each trigger (wire-format object). */
-  jobDefinition?: Record<string, unknown>;
+  /** Job template spawned on each trigger (a job definition without `name`). */
+  jobDefinition?: JobDefinition;
   createdAt?: string;
   [key: string]: unknown;
 }
@@ -29,14 +30,14 @@ export interface CreateCronjobRequest {
   cronSpec: string;
   /** Default true. */
   isActive?: boolean;
-  /** Strict job template (`image`, `command`, `args`, …) — must not contain `name`. */
-  jobDefinition: Record<string, unknown>;
+  /** Strict job template (a {@link JobDefinition}) — must not contain `name`. */
+  jobDefinition: JobDefinition;
 }
 
 export interface PatchCronjobRequest {
   cronSpec?: string;
   isActive?: boolean;
-  jobDefinition?: Record<string, unknown>;
+  jobDefinition?: JobDefinition;
 }
 
 function mapCronjob(raw: RawRecord): Cronjob {
@@ -54,7 +55,7 @@ function mapCronjob(raw: RawRecord): Cronjob {
     cronSpec: typeof cronSpec === "string" ? cronSpec : "",
     isActive: isActive === true,
     lastTriggeredAt: lastTriggeredAt as string | undefined,
-    jobDefinition: raw.job_definition as Record<string, unknown> | undefined,
+    jobDefinition: raw.job_definition as JobDefinition | undefined,
     createdAt: createdAt as string | undefined,
   };
 }
