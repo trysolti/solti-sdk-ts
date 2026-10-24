@@ -20,8 +20,8 @@ Requires Node.js >= 20 (native `fetch`).
 import { SoltiClient } from "@solti/sdk";
 
 // apiKey falls back to the SOLTI_API_KEY environment variable.
-// The project is selected via the X-Solti-Project-Id header — the SDK always
-// targets the global API host (per-project wildcard hosts are not deployed).
+// The project is selected via the X-Solti-Project-Id header — the SDK
+// always targets the global API host.
 const client = new SoltiClient({
   apiKey: process.env.SOLTI_API_KEY,
   projectId: "<project-id>",
@@ -72,7 +72,7 @@ Error mapping per the client tools spec:
 
 | Error | Condition |
 | --- | --- |
-| `AuthenticationError` | HTTP 401 — invalid or expired API key (Zitadel PAT) |
+| `AuthenticationError` | HTTP 401 — invalid or expired API key |
 | `PermissionDeniedError` | HTTP 403 — key role too weak (e.g. `viewer` on a write) |
 | `ValidationError` | HTTP 422 — invalid payload configuration |
 | `RateLimitError` | HTTP 429 — exposes `retryAfter` and the `X-RateLimit-*` headers |
@@ -93,6 +93,6 @@ Idempotent reads (GET) are auto-retried on 429 honoring `Retry-After`
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `apiKey` | `SOLTI_API_KEY` env | Zitadel-managed PAT |
-| `apiUrl` | `https://api.solti.run/1` (`SOLTI_API_URL_GLOBAL` env overrides) | API base URL (use `https://preview.api.solti.run/1` for preview) |
+| `apiKey` | `SOLTI_API_KEY` env | Solti API key |
+| `apiUrl` | `https://api.solti.run/1` (`SOLTI_API_URL_GLOBAL` env overrides) | API base URL |
 | `projectId` | — | Sent as `X-Solti-Project-Id` |
