@@ -76,6 +76,14 @@ export interface CreateJobRequest {
   region?: string | string[];
   /** Container retries inside the VM. */
   maxRetries?: number;
+  /**
+   * Optional ISO 8601 datetime (e.g. `"2026-11-25T02:00:00Z"`): the job is
+   * submitted immediately but stays `queued` at zero cost (no VM) until the
+   * instant passes; the scheduler then provisions it normally. Timezone-aware
+   * values are normalized to UTC; past values start immediately. Cancel works
+   * normally while waiting. Immutable after submission.
+   */
+  runAfter?: string;
   labels?: Record<string, string>;
   tags?: string[];
 }
@@ -114,6 +122,8 @@ export interface JobData {
   oomKilled?: boolean;
   labels?: Record<string, string>;
   tags?: string[];
+  /** Scheduled start instant (`run_after` wire field); absent = immediate. */
+  runAfter?: string;
   createdAt?: string;
   startedAt?: string;
   finishedAt?: string;
@@ -147,6 +157,7 @@ export function mapJob(raw: RawRecord): JobData {
     oomKilled: rawBoolean(raw, "oom_killed"),
     labels: raw.labels as Record<string, string> | undefined,
     tags: raw.tags as string[] | undefined,
+    runAfter: rawString(raw, "run_after"),
     createdAt: rawString(raw, "created_at"),
     startedAt: rawString(raw, "started_at"),
     finishedAt: rawString(raw, "finished_at"),
@@ -170,6 +181,7 @@ export class Job implements JobData {
   readonly oomKilled?: boolean;
   readonly labels?: Record<string, string>;
   readonly tags?: string[];
+  readonly runAfter?: string;
   readonly createdAt?: string;
   readonly startedAt?: string;
   readonly finishedAt?: string;
@@ -193,6 +205,7 @@ export class Job implements JobData {
     this.oomKilled = data.oomKilled;
     this.labels = data.labels;
     this.tags = data.tags;
+    this.runAfter = data.runAfter;
     this.createdAt = data.createdAt;
     this.startedAt = data.startedAt;
     this.finishedAt = data.finishedAt;

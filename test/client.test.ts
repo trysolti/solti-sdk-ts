@@ -250,6 +250,39 @@ describe("jobs resource", () => {
     });
   });
 
+  it("sends runAfter in the payload when given and omits it otherwise", async () => {
+    ts.setHandler((_req, res) => json(res, 200, { id: "job-1", name: "a", status: "queued" }));
+    await client.jobs.create({
+      namePrefix: "batch-",
+      image: "alpine:latest",
+      runAfter: "2026-11-25T02:00:00Z",
+    });
+    expect(ts.requests[0].method).toBe("POST");
+    expect(ts.requests[0].url).toBe("/1/jobs");
+    expect(ts.requests[0].body).toMatchObject({
+      namePrefix: "batch-",
+      image: "alpine:latest",
+      runAfter: "2026-11-25T02:00:00Z",
+    });
+    await client.jobs.create({ image: "alpine:latest" });
+    const body = ts.requests[1].body as Record<string, unknown>;
+    expect(body).toEqual({ image: "alpine:latest" });
+    expect("runAfter" in body).toBe(false);
+  });
+
+  it("maps the run_after response field onto runAfter", async () => {
+    ts.setHandler((_req, res) =>
+      json(res, 200, {
+        id: "job-1",
+        name: "batch-a1b2",
+        status: "queued",
+        run_after: "2026-11-25T02:00:00Z",
+      }),
+    );
+    const job = await client.jobs.get("job-1");
+    expect(job.runAfter).toBe("2026-11-25T02:00:00Z");
+  });
+
   it("maps snake_case response fields to camelCase", async () => {
     ts.setHandler((_req, res) =>
       json(res, 200, {
