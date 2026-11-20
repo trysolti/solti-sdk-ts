@@ -19,6 +19,11 @@ import {
   SoltiClient,
   type TerminalStatus,
   type VmStatus,
+  type WorkflowData,
+  type WorkflowDetailData,
+  type WorkflowListData,
+  type WorkflowStatus,
+  type WorkflowTemplate,
   type WorkloadStatus,
 } from "../src/index.js";
 
@@ -38,6 +43,10 @@ type AssertCloud = AssertExtends<CloudProvider, "aws" | "gcp" | "azure">;
 type AssertConnType = AssertExtends<ConnectionType, "aws" | "gcp" | "azure" | "r2" | "github">;
 type AssertRole = AssertExtends<KeyRole, "admin" | "developer" | "viewer">;
 type AssertMacro = AssertExtends<MacroRegion, "americas" | "europe" | "apac" | "africa" | "middle-east">;
+type AssertWorkflowStatus = AssertExtends<
+  WorkflowStatus,
+  "running" | "succeeded" | "failed" | "cancelled"
+>;
 
 const typeAssertions: AssertExtends<
   [
@@ -48,8 +57,9 @@ const typeAssertions: AssertExtends<
     AssertConnType,
     AssertRole,
     AssertMacro,
+    AssertWorkflowStatus,
   ],
-  [true, true, true, true, true, true, true]
+  [true, true, true, true, true, true, true, true]
 > = true;
 
 void typeAssertions;
@@ -220,5 +230,39 @@ describe("nested typed request interfaces", () => {
       return client.jobs.get("j1");
     })();
     expect(job.status).toBe("succeeded");
+  });
+});
+
+describe("workflow typed contracts (api 0.3.0)", () => {
+  it("accepts the exact workflow status set in list filters", async () => {
+    const statuses: WorkflowStatus[] = ["running", "succeeded", "failed", "cancelled"];
+    for (const status of statuses) {
+      ts.setHandler((_q, res) => json(res, { workflows: [], total: 0, offset: 0, limit: 50 }));
+      await client.workflows.list({ status });
+      expect(ts.requests.at(-1)?.url).toBe(`/1/workflows?status=${status}`);
+    }
+  });
+
+  it("types WorkflowTemplate as a job definition wired with dependencies and fan-out", async () => {
+    ts.setHandler((_q, res) =>
+      json(res, { workflow_id: "wf-1", name: "n", status: "running", nodes: {} }),
+    );
+    const templates: WorkflowTemplate[] = [
+      { name: "root", job: { image: "alpine:latest", command: ["echo", "root"] } },
+      {
+        name: "fanout",
+        job: { image: "alpine:latest", args: ["--item", "{{item}}"] },
+        dependencies: ["root"],
+        withSequence: { start: 1, end: 4, step: 2 },
+      },
+    ];
+    const created: WorkflowData = await client.workflows.create({ namePrefix: "wf-", templates });
+    expect(created.workflowId).toBe("wf-1");
+    expect(created.status).toBe("running");
+    expect(ts.requests[0].body).toMatchObject({ namePrefix: "wf-", templates });
+    const page: WorkflowListData = await client.workflows.list({ status: "running" });
+    expect(page.total).toBe(0);
+    const detail: WorkflowDetailData = await client.workflows.get("wf-1");
+    expect(detail.nodes).toEqual([]);
   });
 });

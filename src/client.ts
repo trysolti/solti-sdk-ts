@@ -15,6 +15,7 @@ import { ConnectionsResource } from "./resources/connections.js";
 import { CronjobsResource } from "./resources/cronjobs.js";
 import { JobsResource } from "./resources/jobs.js";
 import { KeysResource } from "./resources/keys.js";
+import { WorkflowsResource } from "./resources/workflows.js";
 
 /** Global API host — same default as the CLI (`SOLTI_API_URL_GLOBAL` override supported). */
 export const GLOBAL_API_URL = process.env.SOLTI_API_URL_GLOBAL ?? "https://api.solti.run/1";
@@ -41,6 +42,8 @@ export class SoltiClient {
   readonly cronjobs: CronjobsResource;
   /** API keys (admin-only endpoints). */
   readonly keys: KeysResource;
+  /** Workflow DAG orchestration (api 0.3.0): create / get / list / cancel. */
+  readonly workflows: WorkflowsResource;
 
   constructor(options: SoltiClientOptions = {}) {
     const apiKey = options.apiKey ?? process.env.SOLTI_API_KEY;
@@ -55,6 +58,7 @@ export class SoltiClient {
     this.connections = new ConnectionsResource(this);
     this.cronjobs = new CronjobsResource(this);
     this.keys = new KeysResource(this);
+    this.workflows = new WorkflowsResource(this);
   }
 
   /** Performs an API request. `path` is relative to the `/1` base (e.g. `jobs`). */

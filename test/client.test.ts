@@ -324,6 +324,150 @@ describe("jobs resource", () => {
   });
 });
 
+describe("workflows resource (api 0.3.0)", () => {
+  it("creates a workflow with a camelCase templates payload and maps the create response", async () => {
+    ts.setHandler((_req, res) =>
+      json(res, 201, {
+        workflow_id: "wf-1",
+        name: "etl-a1b2",
+        status: "running",
+        nodes: { extract: { job_id: "job-1", name: "etl-a1b2--extract" } },
+      }),
+    );
+    const workflow = await client.workflows.create({
+      namePrefix: "etl-",
+      templates: [
+        {
+          name: "extract",
+          job: { image: "alpine:latest", command: ["python3", "extract.py"] },
+        },
+        {
+          name: "load",
+          job: { image: "alpine:latest", args: ["--item", "{{item}}"] },
+          dependencies: ["extract"],
+          withItems: ["a", "b"],
+        },
+      ],
+    });
+    expect(workflow.workflowId).toBe("wf-1");
+    expect(workflow.name).toBe("etl-a1b2");
+    expect(workflow.status).toBe("running");
+    expect(workflow.nodes?.extract).toEqual({ jobId: "job-1", name: "etl-a1b2--extract" });
+    expect(ts.requests[0]).toMatchObject({ method: "POST", url: "/1/workflows" });
+    expect(ts.requests[0].body).toEqual({
+      namePrefix: "etl-",
+      templates: [
+        { name: "extract", job: { image: "alpine:latest", command: ["python3", "extract.py"] } },
+        {
+          name: "load",
+          job: { image: "alpine:latest", args: ["--item", "{{item}}"] },
+          dependencies: ["extract"],
+          withItems: ["a", "b"],
+        },
+      ],
+    });
+  });
+
+  it("auto-generates the name when neither name nor namePrefix is given", async () => {
+    ts.setHandler((_req, res) =>
+      json(res, 201, { workflow_id: "wf-1", name: "tidal-star-1234", status: "running", nodes: {} }),
+    );
+    const workflow = await client.workflows.create({
+      templates: [{ name: "train", job: { image: "alpine:latest", maxRetries: 1 } }],
+    });
+    expect(workflow.name).toBe("tidal-star-1234");
+    expect(ts.requests[0].body).toEqual({
+      templates: [{ name: "train", job: { image: "alpine:latest", maxRetries: 1 } }],
+    });
+  });
+
+  it("gets by UUID or name and maps WorkflowDetail snake_case fields", async () => {
+    ts.setHandler((_req, res) =>
+      json(res, 200, {
+        id: "wf-1",
+        organization_id: "org-1",
+        project_id: "proj-1",
+        name: "etl-a1b2",
+        status: "running",
+        error_message: null,
+        created_at: "2026-11-20T10:00:00Z",
+        updated_at: "2026-11-20T10:01:00Z",
+        ended_at: null,
+        node_count: 2,
+        nodes: [
+          {
+            job_id: "job-1",
+            name: "etl-a1b2--extract",
+            status: "succeeded",
+            started_at: "2026-11-20T10:00:01Z",
+            ended_at: "2026-11-20T10:00:05Z",
+            estimated_cost: 0.1,
+            actual_cost: 0.2,
+            ondemand_cost: 0.4,
+          },
+          { job_id: "job-2", name: "etl-a1b2--load-a", status: "running", vm_status: "provisioned" },
+        ],
+        estimated_cost: 0.3,
+        actual_cost: 0.5,
+        ondemand_cost: 0.9,
+      }),
+    );
+    const detail = await client.workflows.get("etl-a1b2");
+    expect(ts.requests[0].url).toBe("/1/workflows/etl-a1b2");
+    expect(detail.workflowId).toBe("wf-1");
+    expect(detail.organizationId).toBe("org-1");
+    expect(detail.projectId).toBe("proj-1");
+    expect(detail.createdAt).toBe("2026-11-20T10:00:00Z");
+    expect(detail.updatedAt).toBe("2026-11-20T10:01:00Z");
+    expect(detail.nodeCount).toBe(2);
+    expect(detail.nodes[0]).toMatchObject({
+      jobId: "job-1",
+      name: "etl-a1b2--extract",
+      status: "succeeded",
+      startedAt: "2026-11-20T10:00:01Z",
+      endedAt: "2026-11-20T10:00:05Z",
+      estimatedCost: 0.1,
+      actualCost: 0.2,
+      ondemandCost: 0.4,
+    });
+    expect(detail.nodes[1].vmStatus).toBe("provisioned");
+    expect(detail.estimatedCost).toBe(0.3);
+    expect(detail.actualCost).toBe(0.5);
+    expect(detail.ondemandCost).toBe(0.9);
+  });
+
+  it("lists workflows with query filters and the pagination envelope", async () => {
+    ts.setHandler((_req, res) =>
+      json(res, 200, {
+        workflows: [
+          { id: "wf-1", name: "a", status: "running", node_count: 2 },
+          { id: "wf-2", name: "b", status: "succeeded", node_count: 3 },
+        ],
+        total: 12,
+        offset: 20,
+        limit: 10,
+      }),
+    );
+    const page = await client.workflows.list({ status: "running", limit: 10, offset: 20 });
+    expect(ts.requests[0].url).toBe("/1/workflows?status=running&offset=20&limit=10");
+    expect(page.total).toBe(12);
+    expect(page.offset).toBe(20);
+    expect(page.limit).toBe(10);
+    expect(page.workflows.map((w) => w.workflowId)).toEqual(["wf-1", "wf-2"]);
+    expect(page.workflows[0].nodeCount).toBe(2);
+  });
+
+  it("cancels via POST /1/workflows/{idOrName}/cancel and maps the cancel response", async () => {
+    ts.setHandler((_req, res) =>
+      json(res, 200, { workflow_id: "wf-1", name: "etl-a1b2", status: "cancelled" }),
+    );
+    const cancelled = await client.workflows.cancel("etl-a1b2");
+    expect(ts.requests[0]).toMatchObject({ method: "POST", url: "/1/workflows/etl-a1b2/cancel" });
+    expect(cancelled).toMatchObject({ workflowId: "wf-1", name: "etl-a1b2", status: "cancelled" });
+    expect(cancelled.nodes).toBeUndefined();
+  });
+});
+
 describe("waitUntilComplete", () => {
   it("polls until a terminal state and reports progress", async () => {
     const statuses = ["queued", "booting", "running", "succeeded"];

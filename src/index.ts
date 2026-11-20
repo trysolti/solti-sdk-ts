@@ -51,10 +51,25 @@ export { ConnectionsResource } from "./resources/connections.js";
 export type { Cronjob, CreateCronjobRequest, PatchCronjobRequest } from "./resources/cronjobs.js";
 export { CronjobsResource } from "./resources/cronjobs.js";
 
+export type {
+  CreateWorkflowRequest,
+  WorkflowJobDefinition,
+  WorkflowListData,
+  WorkflowListFilters,
+  WorkflowNodeData,
+  WorkflowNodeRef,
+  WorkflowTemplate,
+  WorkflowWithSequence,
+  WorkflowData,
+  WorkflowDetailData,
+} from "./resources/workflows.js";
+export { WorkflowsResource, mapWorkflow, mapWorkflowDetail } from "./resources/workflows.js";
+
 export type { Key, CreateKeyRequest, CreateKeyResponse } from "./resources/keys.js";
 export { KeysResource } from "./resources/keys.js";
 
 export { TERMINAL_STATUSES } from "./resources/shared.js";
+export type { WorkflowStatus } from "./resources/shared.js";
 export type {
   WorkloadStatus,
   TerminalStatus,

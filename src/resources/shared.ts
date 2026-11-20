@@ -19,6 +19,12 @@ export type WorkloadStatus =
 export type TerminalStatus = "succeeded" | "failed" | "cancelled";
 
 /**
+ * Workflow lifecycle status (api 0.3.0): `running` until every node job is
+ * terminal; the scheduler finalizes to `succeeded`/`failed`/`cancelled`.
+ */
+export type WorkflowStatus = "running" | "succeeded" | "failed" | "cancelled";
+
+/**
  * Infrastructure lifecycle (`vm_status`) — strictly monotonic (scheduler
  * spec): `nonassigned` → `provisioning` → `provisioned` → `terminating` →
  * `terminated`; `error` is reachable only from pre-`terminating` states.
