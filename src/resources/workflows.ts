@@ -9,6 +9,9 @@
  * Request payloads use camelCase wire keys (`namePrefix`, `withItems`,
  * `withSequence`); responses are snake_case and are mapped to camelCase SDK
  * types (`workflowId`, `nodeCount`, `ondemandCost`) exactly like `JobData`.
+ *
+ * Workflows spawned by a cronjob carry `cronjob_name` (api 0.3.2, change 092)
+ * and are listable per cronjob via {@link WorkflowsResource.listForCronjob}.
  */
 
 import type { SoltiClient } from "../client.js";
@@ -109,6 +112,12 @@ export interface WorkflowData {
   nodeCount?: number;
   /** Materialized node jobs keyed by node-job name (create response). */
   nodes?: Record<string, WorkflowNodeRef>;
+  /**
+   * Name of the cronjob that spawned this workflow (`cronjob_name` wire key,
+   * api 0.3.2) — null for API/CLI submissions; absent on create/cancel
+   * responses (the contract surfaces the linkage on list/detail only).
+   */
+  cronjobName?: string | null;
 }
 
 /** Mapped `get` response: the workflow fields plus live node jobs and aggregate costs. */
@@ -123,6 +132,8 @@ export interface WorkflowDetailData {
   updatedAt?: string;
   endedAt?: string;
   nodeCount?: number;
+  /** Name of the spawning cronjob (`cronjob_name`, api 0.3.2) — null for API/CLI submissions. */
+  cronjobName?: string | null;
   /** Node jobs read live from the jobs rows (created_at, name order). */
   nodes: WorkflowNodeData[];
   /** Aggregate estimated cost over the nodes (absent when no node reports one). */
@@ -138,6 +149,15 @@ export interface WorkflowListData {
   total: number;
   offset: number;
   limit: number;
+}
+
+/**
+ * `cronjob_name` wire value (api 0.3.2): string when cron-spawned, null for
+ * API/CLI submissions, absent (undefined) on create/cancel responses.
+ */
+function rawCronjobName(raw: RawRecord): string | null | undefined {
+  const value = raw.cronjob_name;
+  return typeof value === "string" ? value : value === null ? null : undefined;
 }
 
 /** Maps a workflow row (`workflow_id` on create/cancel, `id` on list rows). */
@@ -165,6 +185,7 @@ export function mapWorkflow(raw: RawRecord): WorkflowData {
     endedAt: rawString(raw, "ended_at"),
     nodeCount: rawNumber(raw, "node_count"),
     nodes: Object.keys(nodeMap).length > 0 ? nodeMap : undefined,
+    cronjobName: rawCronjobName(raw),
   };
 }
 
@@ -183,6 +204,17 @@ function mapWorkflowNode(raw: RawRecord): WorkflowNodeData {
   };
 }
 
+/** Maps the shared paginated `ListWorkflowsResponse` envelope (list + listForCronjob). */
+function mapWorkflowList(data: RawRecord): WorkflowListData {
+  const items = Array.isArray(data.workflows) ? (data.workflows as RawRecord[]) : [];
+  return {
+    workflows: items.map(mapWorkflow),
+    total: rawNumber(data, "total") ?? items.length,
+    offset: rawNumber(data, "offset") ?? 0,
+    limit: rawNumber(data, "limit") ?? items.length,
+  };
+}
+
 /** Maps the `get` detail response (live node jobs + aggregate cost sums). */
 export function mapWorkflowDetail(raw: RawRecord): WorkflowDetailData {
   const nodes = Array.isArray(raw.nodes) ? (raw.nodes as RawRecord[]) : [];
@@ -197,6 +229,7 @@ export function mapWorkflowDetail(raw: RawRecord): WorkflowDetailData {
     updatedAt: rawString(raw, "updated_at"),
     endedAt: rawString(raw, "ended_at"),
     nodeCount: rawNumber(raw, "node_count"),
+    cronjobName: rawCronjobName(raw),
     nodes: nodes.map(mapWorkflowNode),
     estimatedCost: rawNumber(raw, "estimated_cost"),
     actualCost: rawNumber(raw, "actual_cost"),
@@ -231,13 +264,31 @@ export class WorkflowsResource {
         limit: filters.limit,
       },
     })) as RawRecord;
-    const items = Array.isArray(data.workflows) ? (data.workflows as RawRecord[]) : [];
-    return {
-      workflows: items.map(mapWorkflow),
-      total: rawNumber(data, "total") ?? items.length,
-      offset: rawNumber(data, "offset") ?? 0,
-      limit: rawNumber(data, "limit") ?? items.length,
-    };
+    return mapWorkflowList(data);
+  }
+
+  /**
+   * Lists the workflows a cronjob spawned — its run history, newest first
+   * (GET /1/cronjobs/{idOrName}/workflows, api 0.3.2, change 092). Accepts
+   * either the cronjob's UUID or its unique name; the match is on the stored
+   * `cronjob_name` linkage the scheduler persists on spawn. Same envelope and
+   * filters as {@link WorkflowsResource.list}.
+   */
+  async listForCronjob(
+    cronjobIdOrName: string,
+    filters: WorkflowListFilters = {},
+  ): Promise<WorkflowListData> {
+    const data = (await this.client.request(
+      `cronjobs/${encodeURIComponent(cronjobIdOrName)}/workflows`,
+      {
+        query: {
+          status: filters.status,
+          offset: filters.offset,
+          limit: filters.limit,
+        },
+      },
+    )) as RawRecord;
+    return mapWorkflowList(data);
   }
 
   /**

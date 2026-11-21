@@ -457,6 +457,34 @@ describe("workflows resource (api 0.3.0)", () => {
     expect(page.workflows[0].nodeCount).toBe(2);
   });
 
+  it("lists a cronjob's spawned workflows via GET /1/cronjobs/{idOrName}/workflows", async () => {
+    ts.setHandler((_req, res) =>
+      json(res, 200, {
+        workflows: [
+          {
+            id: "wf-1",
+            name: "nightly-etl-1730000000",
+            status: "succeeded",
+            node_count: 1,
+            cronjob_name: "nightly-etl",
+          },
+          { id: "wf-2", name: "nightly-etl-1730003600", status: "failed", node_count: 2, cronjob_name: null },
+        ],
+        total: 5,
+        offset: 3,
+        limit: 2,
+      }),
+    );
+    const page = await client.workflows.listForCronjob("nightly-etl", { status: "failed", limit: 2, offset: 3 });
+    expect(ts.requests[0].url).toBe("/1/cronjobs/nightly-etl/workflows?status=failed&offset=3&limit=2");
+    expect(page.total).toBe(5);
+    expect(page.offset).toBe(3);
+    expect(page.limit).toBe(2);
+    expect(page.workflows.map((w) => w.workflowId)).toEqual(["wf-1", "wf-2"]);
+    expect(page.workflows[0].cronjobName).toBe("nightly-etl");
+    expect(page.workflows[1].cronjobName).toBeNull();
+  });
+
   it("cancels via POST /1/workflows/{idOrName}/cancel and maps the cancel response", async () => {
     ts.setHandler((_req, res) =>
       json(res, 200, { workflow_id: "wf-1", name: "etl-a1b2", status: "cancelled" }),

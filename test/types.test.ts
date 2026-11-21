@@ -243,6 +243,21 @@ describe("workflow typed contracts (api 0.3.0)", () => {
     }
   });
 
+  it("accepts the exact workflow status set in listForCronjob filters (api 0.3.2)", async () => {
+    const assertCronjobName: AssertExtends<
+      WorkflowData["cronjobName"] | WorkflowDetailData["cronjobName"],
+      string | null | undefined
+    > = true;
+    void assertCronjobName;
+    const statuses: WorkflowStatus[] = ["running", "succeeded", "failed", "cancelled"];
+    for (const status of statuses) {
+      ts.setHandler((_q, res) => json(res, { workflows: [], total: 0, offset: 0, limit: 50 }));
+      const page: WorkflowListData = await client.workflows.listForCronjob("nightly-etl", { status });
+      expect(ts.requests.at(-1)?.url).toBe(`/1/cronjobs/nightly-etl/workflows?status=${status}`);
+      expect(page.workflows).toEqual([]);
+    }
+  });
+
   it("types WorkflowTemplate as a job definition wired with dependencies and fan-out", async () => {
     ts.setHandler((_q, res) =>
       json(res, { workflow_id: "wf-1", name: "n", status: "running", nodes: {} }),
