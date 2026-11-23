@@ -96,9 +96,3 @@ Idempotent reads (GET) are auto-retried on 429 honoring `Retry-After`
 | `apiKey` | `SOLTI_API_KEY` env | Solti API key |
 | `apiUrl` | `https://api.solti.run/1` (`SOLTI_API_URL_GLOBAL` env overrides) | API base URL |
 | `projectId` | — | Sent as `X-Solti-Project-Id` |
-
-## npm
-
-1. Bump the version (package.json/pyproject.toml) and update the CLI version constant if present.
-2. Commit + tag `vX.Y.Z` and push — the release workflow runs tests, publishes to Releasing, and creates the GitHub Release.
-pnpm test && pnpm build|npm publish (requires the NPM_TOKEN repo secret or a local token). A GitHub Actions workflow (tag v*) publishes and creates the GitHub Release automatically.
