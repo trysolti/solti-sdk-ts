@@ -166,6 +166,19 @@ describe("nested typed request interfaces", () => {
     expect(ts.requests[1].body).toMatchObject({ resources: { gpu: "24Gi" } });
   });
 
+  it("accepts resources.storage as integer GiB or Gi/Mi quantity string", async () => {
+    // change 100: boot/root disk override — omitted ⇒ provider default
+    // (AWS 8 GiB, GCP 10 GB, Azure 30 GB); cronjob templates share the type.
+    ts.setHandler((_q, res) => json(res, { id: "j1", name: "n", status: "queued" }));
+    await client.jobs.create({
+      image: "alpine:latest",
+      resources: { memory: "16Gi", storage: "100Gi" },
+    });
+    await client.jobs.create({ image: "alpine:latest", resources: { storage: 100 } });
+    expect(ts.requests[0].body).toMatchObject({ resources: { storage: "100Gi" } });
+    expect(ts.requests[1].body).toMatchObject({ resources: { storage: 100 } });
+  });
+
   it("accepts typed per-provider credentials for every connection type", async () => {
     ts.setHandler((_q, res) => json(res, { name: "c", type: "aws" }));
     const credentialSets: Array<[ConnectionType, ConnectionCredentials]> = [

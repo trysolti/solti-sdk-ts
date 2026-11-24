@@ -56,6 +56,13 @@ export interface JobResources {
   cpu?: number;
   memory?: string;
   gpu?: string | GpuRequest;
+  /**
+   * Boot/root disk size of the provisioned VM (change 100): integer GiB
+   * (`100`) or quantity string (`"100Gi"` / `"102400Mi"`); bounds 10–16384 GiB
+   * (integral — fractional quantities are rejected `422`). Omitted ⇒
+   * per-provider image default (AWS 8 GiB, GCP 10 GB, Azure 30 GB).
+   */
+  storage?: number | string;
 }
 
 export interface CreateJobRequest {

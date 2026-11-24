@@ -32,7 +32,7 @@ const job = await client.jobs.create({
   image: "postgres:18-alpine",
   command: ["psql"],
   args: ["-c", "VACUUM ANALYZE;"],
-  resources: { cpu: 2, memory: "4Gi" },
+  resources: { cpu: 2, memory: "4Gi", storage: "100Gi" }, // storage: boot-disk override (GiB int or Gi/Mi string)
   labels: { environment: "production" },
   tags: ["maintenance"],
 });
